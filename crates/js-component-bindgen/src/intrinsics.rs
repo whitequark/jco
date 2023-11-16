@@ -7,6 +7,7 @@ use std::fmt::Write;
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub enum Intrinsic {
     Base64Compile,
+    BigIntMask32,
     ClampGuest,
     ComponentError,
     DataView,
@@ -20,8 +21,8 @@ pub enum Intrinsic {
     I64ToF64,
     InstantiateCore,
     IsLE,
-    SymbolResourceHandle,
     SymbolDispose,
+    SymbolResourceHandle,
     ThrowInvalidBool,
     ThrowUninitialized,
     /// Implementation of https://tc39.es/ecma262/#sec-tobigint64.
@@ -97,6 +98,12 @@ pub fn render_intrinsics(
                     const base64Compile = str => WebAssembly.compile(Uint8Array.from(atob(str), b => b.charCodeAt(0)));
                 ")
             },
+
+            Intrinsic::BigIntMask32 => {
+                output.push_str("
+                    const bigIntMask32 = 4294967295n;
+                ");
+            }
 
             Intrinsic::ClampGuest => output.push_str("
                 function clampGuest(i, min, max) {
@@ -381,6 +388,7 @@ impl Intrinsic {
             "base64Compile",
             "BigInt",
             "BigInt64Array",
+            "bigIntMask32",
             "clampGuest",
             "ComponentError",
             "dataView",
@@ -434,6 +442,7 @@ impl Intrinsic {
     pub fn name(&self) -> &'static str {
         match self {
             Intrinsic::Base64Compile => "base64Compile",
+            Intrinsic::BigIntMask32 => "bigIntMask32",
             Intrinsic::ClampGuest => "clampGuest",
             Intrinsic::ComponentError => "ComponentError",
             Intrinsic::DataView => "dataView",

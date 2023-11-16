@@ -5,9 +5,11 @@ use crate::source::Source;
 use crate::transpile_bindgen::{parse_world_key, InstantiationMode, TranspileOpts};
 use crate::{uwrite, uwriteln};
 use heck::*;
+use num_bigint::BigUint;
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write;
+use std::ops::ShlAssign;
 use wit_parser::*;
 
 struct TsBindgen {
@@ -773,13 +775,20 @@ impl<'a> TsInterface<'a> {
     fn type_flags(&mut self, _id: TypeId, name: &str, flags: &Flags, docs: &Docs) {
         self.docs(docs);
         self.src.push_str(&format!(
-            "export interface {} {{\n",
+            "export type {} = bigint;\n",
             name.to_upper_camel_case()
         ));
+        self.src.push_str(&format!(
+            "export namespace {} {{\n",
+            name.to_upper_camel_case()
+        ));
+        let mut num = BigUint::parse_bytes(b"1", 10).unwrap();
         for flag in flags.flags.iter() {
             self.docs(&flag.docs);
-            let name = flag.name.to_lower_camel_case();
-            self.src.push_str(&format!("{name}?: boolean,\n"));
+            let name = flag.name.to_upper_camel_case();
+            self.src
+                .push_str(&format!("type {name} = {}n;\n", num.to_string()));
+            num.shl_assign(1);
         }
         self.src.push_str("}\n");
     }

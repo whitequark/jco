@@ -378,54 +378,45 @@ impl Bindgen for FunctionBindgen<'_> {
                 results.push(format!("[{}]", operands.join(", ")));
             }
 
-            // This lowers flags from a dictionary of booleans in accordance with https://webidl.spec.whatwg.org/#es-dictionary.
-            Instruction::FlagsLower { flags, .. } => {
+            // This lowers flags from a bigint
+            Instruction::FlagsLower { flags, name, .. } => {
                 let op0 = &operands[0];
 
-                // Generate the result names.
-                for _ in 0..flags.repr().count() {
+                uwriteln!(self.src,
+                    "if (typeof {op0} !== 'bigint') {{
+                        throw new TypeError('only bigint is supported for flags, import the {} flags type to construct the bigint value');
+                    }}",
+                    name.to_upper_camel_case()
+                );
+
+                let bigint_mask32 = self.intrinsic(Intrinsic::BigIntMask32);
+
+                for i in 0..flags.repr().count() {
                     let tmp = self.tmp();
                     let name = format!("flags{tmp}");
-                    // Default to 0 so that in the null/undefined case, everything is false by
-                    // default.
-                    uwrite!(self.src, "let {name} = 0;\n");
+                    uwriteln!(
+                        self.src,
+                        "var {name} = Number(({op0} >> {}n) & {bigint_mask32}); console.error('{name}', {name});",
+                        32 * i
+                    );
                     results.push(name);
                 }
 
-                uwrite!(
-                    self.src,
-                    "if (typeof {op0} === 'object' && {op0} !== null) {{\n"
-                );
-
-                for (i, chunk) in flags.flags.chunks(32).enumerate() {
-                    let result_name = &results[i];
-
-                    uwrite!(self.src, "{result_name} = ");
-                    for (i, flag) in chunk.iter().enumerate() {
-                        if i != 0 {
-                            uwrite!(self.src, " | ");
-                        }
-
-                        let flag = flag.name.to_lower_camel_case();
-                        uwrite!(self.src, "Boolean({op0}.{flag}) << {i}");
-                    }
-                    uwrite!(self.src, ";\n");
+                if flags.flags.len() % 32 != 0 {
+                    let mask: u32 = 0xffffffff << (flags.flags.len() % 32);
+                    uwriteln!(
+                        self.src,
+                        "if ((({op0} >> {}n) & {mask}n) !== 0n) {{
+                            throw new TypeError('flags have extraneous bits set');
+                        }}",
+                        flags.repr().count() - 1
+                    );
                 }
-
-                uwrite!(self.src, "\
-                    }} else if ({op0} !== null && {op0} !== undefined) {{
-                        throw new TypeError('only an object, undefined or null can be converted to flags');
-                    }}
-                ");
-
-                // We don't need to do anything else for the null/undefined
-                // case, since that's interpreted as everything false, and we
-                // already defaulted everyting to 0.
             }
 
             Instruction::FlagsLift { flags, .. } => {
                 let tmp = self.tmp();
-                results.push(format!("flags{tmp}"));
+                let name = format!("flags{tmp}");
 
                 if let Some(op) = operands.last() {
                     // We only need an extraneous bits check if the number of flags isn't a multiple
@@ -442,16 +433,16 @@ impl Bindgen for FunctionBindgen<'_> {
                     }
                 }
 
-                uwriteln!(self.src, "var flags{tmp} = {{");
-
-                for (i, flag) in flags.flags.iter().enumerate() {
-                    let flag = flag.name.to_lower_camel_case();
-                    let op = &operands[i / 32];
-                    let mask: u32 = 1 << (i % 32);
-                    uwriteln!(self.src, "{flag}: Boolean({op} & {mask}),");
+                uwriteln!(self.src, "var {name} = 0n;");
+                for i in 0..flags.repr().count() {
+                    let op = &operands[i];
+                    uwriteln!(
+                        self.src,
+                        "{name} = ({name} << 32n) | BigInt({op}); console.error('{name}', {name});"
+                    );
                 }
 
-                uwriteln!(self.src, "}};");
+                results.push(name);
             }
 
             Instruction::VariantPayloadName => results.push("e".to_string()),
