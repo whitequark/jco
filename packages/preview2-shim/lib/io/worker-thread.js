@@ -2,7 +2,7 @@ import { resolve } from "node:dns/promises";
 import { createReadStream, createWriteStream } from "node:fs";
 import { stdout, stderr, hrtime, _rawDebug, exit } from "node:process";
 import { runAsWorker } from "../synckit/index.js";
-import { createHttpRequest } from "./worker-http.js";
+import { createHttpRequest, startHttpServer, stopHttpServer, setOutgoingResponse, clearOutgoingResponse } from "./worker-http.js";
 import { Writable } from "node:stream";
 
 import {
@@ -16,6 +16,8 @@ import {
   FUTURE_GET_VALUE_AND_DISPOSE,
   HTTP_CREATE_REQUEST,
   HTTP_OUTPUT_STREAM_FINISH,
+  HTTP_SERVER_START,
+  HTTP_SERVER_STOP,
   INPUT_STREAM_BLOCKING_READ,
   INPUT_STREAM_BLOCKING_SKIP,
   INPUT_STREAM_CREATE,
@@ -47,6 +49,8 @@ import {
   STDERR,
   STDIN,
   STDOUT,
+  HTTP_SERVER_SET_OUTGOING_RESPONSE,
+  HTTP_SERVER_CLEAR_OUTGOING_RESPONSE,
 } from "./calls.js";
 
 let streamCnt = 0,
@@ -195,6 +199,14 @@ function handle(call, id, payload) {
       stream.end();
       break;
     }
+    case HTTP_SERVER_START:
+      return startHttpServer(id, payload);
+    case HTTP_SERVER_STOP:
+      return stopHttpServer(id);
+    case HTTP_SERVER_SET_OUTGOING_RESPONSE:
+      return setOutgoingResponse(id, payload);
+    case HTTP_SERVER_CLEAR_OUTGOING_RESPONSE:
+      return clearOutgoingResponse(id);
 
     // Sockets
     case SOCKET_RESOLVE_ADDRESS_CREATE_REQUEST:
