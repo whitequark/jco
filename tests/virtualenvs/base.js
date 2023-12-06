@@ -4,9 +4,9 @@ import { mkdtemp, writeFile, mkdir } from 'node:fs/promises';
 import { rmdirSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
-import { platform } from 'node:process';
+import process from 'node:process';
 
-const isWindows = platform === 'win32';
+const isWindows = process.platform === 'win32';
 
 export const testDir = (isWindows ? '' : '') + await mkdtemp(tmpdir() + sep);
 

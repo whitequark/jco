@@ -15,6 +15,9 @@ fn cli_stdin() -> anyhow::Result<()> {
 
     let cmd = cmd!(sh, "node ./src/jco.js run  --jco-dir ./tests/rundir/cli_stdin --jco-import ./tests/virtualenvs/base.js {wasi_file} hello this '' 'is an argument' 'with 🚩 emoji'");
     let cmd = cmd.stdin(b"So rested he by the Tumtum tree");
+    let cmd = cmd
+        .env("JCO_RUN_PATH", "deno")
+        .env("JCO_RUN_ARGS", "run --importmap importmap.json -A");
     cmd.run()?;
     Ok(())
 }

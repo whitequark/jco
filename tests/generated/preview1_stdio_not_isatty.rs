@@ -15,6 +15,9 @@ fn preview1_stdio_not_isatty() -> anyhow::Result<()> {
 
     let cmd = cmd!(sh, "node ./src/jco.js run  --jco-dir ./tests/rundir/preview1_stdio_not_isatty --jco-import ./tests/virtualenvs/notty.js {wasi_file} hello this '' 'is an argument' 'with 🚩 emoji'");
 
+    let cmd = cmd
+        .env("JCO_RUN_PATH", "deno")
+        .env("JCO_RUN_ARGS", "run --importmap importmap.json -A");
     cmd.run()?;
     Ok(())
 }

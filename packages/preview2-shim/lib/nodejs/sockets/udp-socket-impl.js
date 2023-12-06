@@ -12,6 +12,7 @@ import { isIP } from "node:net";
 import { assert } from "../../common/assert.js";
 import { pollableCreate } from "../../io/worker-io.js";
 import { cappedUint32, deserializeIpAddress, serializeIpAddress } from "./socket-common.js";
+import process from 'node:process';
 
 const symbolDispose = Symbol.dispose || Symbol.for("dispose");
 const symbolSocketState = Symbol.SocketInternalState || Symbol.for("SocketInternalState");
@@ -243,6 +244,7 @@ export class UdpSocketImpl {
    * @throws {invalid-state} The socket is already bound. (EINVAL)
    */
   startBind(network, localAddress) {
+    return ioCall(SOCKETS_UDP_START_BIND, id, network, localAddress);
     try {
       assert(this[symbolSocketState].isBound, "invalid-state", "The socket is already bound");
 

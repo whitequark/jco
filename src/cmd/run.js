@@ -2,7 +2,7 @@ import { getTmpDir } from '../common.js';
 import { transpile } from './transpile.js';
 import { rm, stat, mkdir, writeFile, symlink } from 'node:fs/promises';
 import { basename, resolve, extname } from 'node:path';
-import { fork } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import process from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import c from 'chalk-template';
@@ -63,12 +63,14 @@ export async function run (componentPath, args, opts) {
     const runPath = resolve(outDir, '_run.js');
     await writeFile(runPath, `
       ${jcoImport ? `import ${JSON.stringify(pathToFileURL(jcoImport))}` : ''}
-
+      import process from 'node:process';
       function logInvalidCommand () {
         console.error('Not a valid command component to execute, make sure it was built to a command adapter and with the same version.');
       }
       try {
-        process.argv[1] = "${name}";
+        try {
+          process.argv[1] = "${name}";
+        } catch {}
         const mod = await import('./${name}.js');
         if (!mod.run || !mod.run.run) {
           logInvalidCommand();
@@ -90,8 +92,10 @@ export async function run (componentPath, args, opts) {
       }
     `);
 
+    const nodePath = process.env.JCO_RUN_PATH || process.argv[0];
+
     process.exitCode = await new Promise((resolve, reject) => {
-      const cp = fork(runPath, args, { stdio: 'inherit' });
+      const cp = spawn(nodePath, [...(process.env.JCO_RUN_ARGS || '').split(' '), runPath, ...args], { stdio: 'inherit' });
 
       cp.on('error', reject);
       cp.on('exit', resolve);

@@ -103,7 +103,8 @@ function startWorkerThread(
     }
     return result;
   };
-  worker.unref();
+  if (worker.unref)
+    worker.unref();
   return syncFn;
 }
 

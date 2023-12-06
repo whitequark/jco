@@ -7,7 +7,7 @@
  * @typedef {import("../../../types/interfaces/wasi-sockets-udp").UdpSocket} UdpSocket
  */
 
-import { isIP } from "net";
+import { isIP } from "node:net";
 import { assert } from "../../common/assert.js";
 import {
   SOCKET_RESOLVE_ADDRESS_CREATE_REQUEST,

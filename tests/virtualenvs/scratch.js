@@ -3,9 +3,9 @@ import { _setPreopens } from "@bytecodealliance/preview2-shim/filesystem";
 import { mkdtemp } from 'node:fs/promises';
 import { rmdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { platform } from 'node:process';
+import process from 'node:process';
 
-const isWindows = platform === 'win32';
+const isWindows = process.platform === 'win32';
 
 const env = {
   FS_TIME_PRECISION: "2000",

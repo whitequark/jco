@@ -15,6 +15,6 @@ fn api_read_only() -> anyhow::Result<()> {
 
     // let cmd = cmd!(sh, "node ./src/jco.js run  --jco-dir ./tests/rundir/api_read_only --jco-import ./tests/virtualenvs/base.js {wasi_file} hello this '' 'is an argument' 'with 🚩 emoji'");
 
-    // cmd.run()?;
+    // let cmd = cmd.env("JCO_RUN_PATH", "deno").env("JCO_RUN_ARGS", "run --importmap importmap.json -A");cmd.run()?;
     panic!("skipped"); // Ok(())
 }

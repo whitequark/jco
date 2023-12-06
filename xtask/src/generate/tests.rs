@@ -2,6 +2,7 @@ use std::fs;
 use xshell::{cmd, Shell};
 
 const TRACE: bool = false;
+const DENO: bool = true;
 
 pub fn run() -> anyhow::Result<()> {
     let sh = Shell::new()?;
@@ -65,6 +66,12 @@ fn generate_test(test_name: &str) -> String {
         }
     };
 
+    let run_config = if DENO {
+        "let cmd = cmd.env(\"JCO_RUN_PATH\", \"deno\").env(\"JCO_RUN_ARGS\", \"run --importmap importmap.json -A\");"
+    } else {
+        ""
+    };
+
     let stdin = match test_name {
         "cli_stdin" => Some("So rested he by the Tumtum tree"),
         _ => None,
@@ -99,7 +106,7 @@ fn {test_name}() -> anyhow::Result<()> {{
 
     {skip_comment}let cmd = cmd!(sh, "node ./src/jco.js run {} --jco-dir ./tests/rundir/{test_name} --jco-import ./tests/virtualenvs/{virtual_env}.js {{wasi_file}} hello this '' 'is an argument' 'with 🚩 emoji'");
 {}
-    {skip_comment}cmd.run(){};
+    {skip_comment}{}cmd.run(){};
     {}Ok(())
 }}
 "##,
@@ -108,6 +115,7 @@ fn {test_name}() -> anyhow::Result<()> {{
             Some(stdin) => format!("    {skip_comment}let cmd = cmd.stdin(b\"{}\");", stdin),
             None => "".into(),
         },
+        run_config,
         if !should_error {
             "?"
         } else {

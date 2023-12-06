@@ -1,6 +1,6 @@
 import { resolve } from "node:dns/promises";
 import { createReadStream, createWriteStream } from "node:fs";
-import { stdout, stderr, hrtime, _rawDebug, exit } from "node:process";
+import { stdout, stderr, hrtime, exit } from "node:process";
 import { runAsWorker } from "../synckit/index.js";
 import { createHttpRequest } from "./worker-http.js";
 import { Writable } from "node:stream";
@@ -551,8 +551,8 @@ export function createPoll(promise) {
     promise.then(
       () => void unfinishedPolls.delete(pollId),
       (err) => {
-        _rawDebug("Unexpected poll error");
-        _rawDebug(err);
+        process._rawDebug("Unexpected poll error");
+        process._rawDebug(err);
         exit(1);
       }
     )

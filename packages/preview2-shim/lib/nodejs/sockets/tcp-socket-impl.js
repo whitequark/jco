@@ -13,6 +13,7 @@
 import { isIP, Socket as NodeSocket } from "node:net";
 import { platform } from "node:os";
 import { assert } from "../../common/assert.js";
+import process from 'node:process';
 // import { streams } from "../io.js";
 // const { InputStream, OutputStream } = streams;
 

@@ -6,30 +6,7 @@ import {
 import { INPUT_STREAM_CREATE, OUTPUT_STREAM_CREATE } from "../io/calls.js";
 import { FILE } from "../io/calls.js";
 // import { environment } from "./cli.js";
-import {
-  closeSync,
-  constants,
-  fdatasyncSync,
-  fstatSync,
-  fsyncSync,
-  ftruncateSync,
-  futimesSync,
-  linkSync,
-  lstatSync,
-  lutimesSync,
-  mkdirSync,
-  opendirSync,
-  openSync,
-  readlinkSync,
-  readSync,
-  renameSync,
-  rmdirSync,
-  statSync,
-  symlinkSync,
-  unlinkSync,
-  utimesSync,
-  writeSync,
-} from "node:fs";
+import * as fs from 'node:fs';
 import { platform } from "node:process";
 
 const symbolDispose = Symbol.dispose || Symbol.for("dispose");
@@ -123,7 +100,7 @@ class Descriptor {
   syncData() {
     if (this.#hostPreopen) throw "invalid";
     try {
-      fdatasyncSync(this.#fd);
+      fs.fdatasyncSync(this.#fd);
     } catch (e) {
       throw convertFsError(e);
     }
@@ -135,14 +112,14 @@ class Descriptor {
 
   getType() {
     if (this.#hostPreopen) return "directory";
-    const stats = fstatSync(this.#fd);
+    const stats = fs.fstatSync(this.#fd);
     return lookupType(stats);
   }
 
   setSize(size) {
     if (this.#hostPreopen) throw "is-directory";
     try {
-      ftruncateSync(this.#fd, Number(size));
+      fs.ftruncateSync(this.#fd, Number(size));
     } catch (e) {
       throw convertFsError(e);
     }
@@ -166,7 +143,7 @@ class Descriptor {
         stats.dataModificationTimestamp
     );
     try {
-      futimesSync(this.#fd, atime, mtime);
+      fs.futimesSync(this.#fd, atime, mtime);
     } catch (e) {
       throw convertFsError(e);
     }
@@ -186,7 +163,7 @@ class Descriptor {
   read(length, offset) {
     if (!this.#fullPath) throw "bad-descriptor";
     const buf = new Uint8Array(Number(length));
-    const bytesRead = readSync(
+    const bytesRead = fs.readSync(
       this.#fd,
       buf,
       0,
@@ -200,14 +177,14 @@ class Descriptor {
   write(buffer, offset) {
     if (!this.#fullPath) throw "bad-descriptor";
     return BigInt(
-      writeSync(this.#fd, buffer, 0, buffer.byteLength, Number(offset))
+      fs.writeSync(this.#fd, buffer, 0, buffer.byteLength, Number(offset))
     );
   }
 
   readDirectory() {
     if (!this.#fullPath) throw "bad-descriptor";
     try {
-      const dir = opendirSync(this.#fullPath);
+      const dir = fs.opendirSync(this.#fullPath);
       return directoryEntryStreamCreate(dir);
     } catch (e) {
       throw convertFsError(e);
@@ -217,7 +194,7 @@ class Descriptor {
   sync() {
     if (this.#hostPreopen) throw "invalid";
     try {
-      fsyncSync(this.#fd);
+      fs.fsyncSync(this.#fd);
     } catch (e) {
       throw convertFsError(e);
     }
@@ -226,7 +203,7 @@ class Descriptor {
   createDirectoryAt(path) {
     const fullPath = this.#getFullPath(path);
     try {
-      mkdirSync(fullPath);
+      fs.mkdirSync(fullPath);
     } catch (e) {
       throw convertFsError(e);
     }
@@ -236,7 +213,7 @@ class Descriptor {
     if (this.#hostPreopen) throw "invalid";
     let stats;
     try {
-      stats = fstatSync(this.#fd, { bigint: true });
+      stats = fs.fstatSync(this.#fd, { bigint: true });
     } catch (e) {
       throw convertFsError(e);
     }
@@ -255,7 +232,7 @@ class Descriptor {
     const fullPath = this.#getFullPath(path, false);
     let stats;
     try {
-      stats = (pathFlags.symlinkFollow ? statSync : lstatSync)(fullPath, {
+      stats = (pathFlags.symlinkFollow ? fs.statSync : fs.lstatSync)(fullPath, {
         bigint: true,
       });
     } catch (e) {
@@ -290,7 +267,7 @@ class Descriptor {
         stats.dataModificationTimestamp
     );
     try {
-      (pathFlags.symlinkFollow ? utimesSync : lutimesSync)(
+      (pathFlags.symlinkFollow ? fs.utimesSync : fs.lutimesSync)(
         fullPath,
         atime,
         mtime
@@ -306,7 +283,7 @@ class Descriptor {
     // Windows doesn't automatically fail on trailing slashes
     if (isWindows && newFullPath.endsWith("/")) throw "no-entry";
     try {
-      linkSync(oldFullPath, newFullPath);
+      fs.linkSync(oldFullPath, newFullPath);
     } catch (e) {
       throw convertFsError(e);
     }
@@ -315,24 +292,24 @@ class Descriptor {
   openAt(pathFlags, path, openFlags, descriptorFlags) {
     const fullPath = this.#getFullPath(path, pathFlags.symlinkFollow);
     let fsOpenFlags = 0x0;
-    if (openFlags.create) fsOpenFlags |= constants.O_CREAT;
-    if (openFlags.directory) fsOpenFlags |= constants.O_DIRECTORY;
-    if (openFlags.exclusive) fsOpenFlags |= constants.O_EXCL;
-    if (openFlags.truncate) fsOpenFlags |= constants.O_TRUNC;
+    if (openFlags.create) fsOpenFlags |= fs.constants.O_CREAT;
+    if (openFlags.directory) fsOpenFlags |= fs.constants.O_DIRECTORY;
+    if (openFlags.exclusive) fsOpenFlags |= fs.constants.O_EXCL;
+    if (openFlags.truncate) fsOpenFlags |= fs.constants.O_TRUNC;
 
     if (descriptorFlags.read && descriptorFlags.write)
-      fsOpenFlags |= constants.O_RDWR;
-    else if (descriptorFlags.write) fsOpenFlags |= constants.O_WRONLY;
-    else if (descriptorFlags.read) fsOpenFlags |= constants.O_RDONLY;
-    if (descriptorFlags.fileIntegritySync) fsOpenFlags |= constants.O_SYNC;
-    if (descriptorFlags.dataIntegritySync) fsOpenFlags |= constants.O_DSYNC;
-    if (!pathFlags.symlinkFollow) fsOpenFlags |= constants.O_NOFOLLOW;
+      fsOpenFlags |= fs.constants.O_RDWR;
+    else if (descriptorFlags.write) fsOpenFlags |= fs.constants.O_WRONLY;
+    else if (descriptorFlags.read) fsOpenFlags |= fs.constants.O_RDONLY;
+    if (descriptorFlags.fileIntegritySync) fsOpenFlags |= fs.constants.O_SYNC;
+    if (descriptorFlags.dataIntegritySync) fsOpenFlags |= fs.constants.O_DSYNC;
+    if (!pathFlags.symlinkFollow) fsOpenFlags |= fs.constants.O_NOFOLLOW;
 
     // Unsupported:
     // if (descriptorFlags.requestedWriteSync)
     // if (descriptorFlags.mutateDirectory)
     try {
-      const fd = openSync(fullPath, fsOpenFlags);
+      const fd = fs.openSync(fullPath, fsOpenFlags);
       const descriptor = descriptorCreate(
         fd,
         descriptorFlags,
@@ -353,7 +330,7 @@ class Descriptor {
   readlinkAt(path) {
     const fullPath = this.#getFullPath(path, false);
     try {
-      return readlinkSync(fullPath);
+      return fs.readlinkSync(fullPath);
     } catch (e) {
       throw convertFsError(e);
     }
@@ -362,7 +339,7 @@ class Descriptor {
   removeDirectoryAt(path) {
     const fullPath = this.#getFullPath(path, false);
     try {
-      rmdirSync(fullPath);
+      fs.rmdirSync(fullPath);
     } catch (e) {
       if (isWindows && e.code === "ENOENT") throw "not-directory";
       throw convertFsError(e);
@@ -373,7 +350,7 @@ class Descriptor {
     const oldFullPath = this.#getFullPath(oldPath, false);
     const newFullPath = newDescriptor.#getFullPath(newPath, false);
     try {
-      renameSync(oldFullPath, newFullPath);
+      fs.renameSync(oldFullPath, newFullPath);
     } catch (e) {
       if (isWindows && e.code === "EPERM") throw "access";
       throw convertFsError(e);
@@ -384,7 +361,7 @@ class Descriptor {
     const fullPath = this.#getFullPath(path, false);
     if (target.startsWith("/")) throw "not-permitted";
     try {
-      symlinkSync(target, fullPath);
+      fs.symlinkSync(target, fullPath);
     } catch (e) {
       if (isWindows && (e.code === "EPERM" || e.code === "EEXIST"))
         throw "no-entry";
@@ -395,7 +372,7 @@ class Descriptor {
   unlinkFileAt(path) {
     const fullPath = this.#getFullPath(path, false);
     try {
-      unlinkSync(fullPath);
+      fs.unlinkSync(fullPath);
     } catch (e) {
       throw convertFsError(e);
     }
@@ -408,7 +385,7 @@ class Descriptor {
   metadataHash() {
     if (this.#hostPreopen) return { upper: 0n, lower: BigInt(this._id) };
     try {
-      const stats = fstatSync(this.#fd, { bigint: true });
+      const stats = fs.fstatSync(this.#fd, { bigint: true });
       return { upper: stats.mtimeNs, lower: stats.ino };
     } catch (e) {
       throw convertFsError(e);
@@ -418,7 +395,7 @@ class Descriptor {
   metadataHashAt(pathFlags, path) {
     const fullPath = this.#getFullPath(path, false);
     try {
-      const stats = (pathFlags.symlinkFollow ? statSync : lstatSync)(fullPath, {
+      const stats = (pathFlags.symlinkFollow ? fs.statSync : fs.lstatSync)(fullPath, {
         bigint: true,
       });
       return { upper: stats.mtimeNs, lower: stats.ino };
@@ -486,7 +463,7 @@ class Descriptor {
   }
 
   [symbolDispose]() {
-    if (this.#fd) closeSync(this.#fd);
+    if (this.#fd) fs.closeSync(this.#fd);
   }
 }
 const descriptorCreatePreopen = Descriptor._createPreopen;
@@ -499,7 +476,7 @@ class DirectoryEntryStream {
   readDirectoryEntry() {
     let entry;
     try {
-      entry = this.#dir.readSync();
+      entry = this.#dir.fs.readSync();
     } catch (e) {
       throw convertFsError(e);
     }
