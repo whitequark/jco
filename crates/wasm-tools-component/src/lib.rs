@@ -4,6 +4,7 @@ use wasm_encoder::{Encode, Section};
 use wasm_metadata::Producers;
 use wit_component::{ComponentEncoder, DecodedWasm, WitPrinter};
 use wit_parser::{Resolve, UnresolvedPackage};
+use std::fs::metadata;
 
 use exports::local::wasm_tools::tools::{
     EmbedOpts, Guest, ModuleMetaType, ModuleMetadata, ProducersFields, StringEncoding,
@@ -74,15 +75,19 @@ impl Guest for WasmToolsJs {
 
         let mut resolve = Resolve::default();
 
-        let pkg = if let Some(wit_source) = &embed_opts.wit_source {
+        let id = if let Some(wit_source) = &embed_opts.wit_source {
             let path = PathBuf::from("component.wit");
-            UnresolvedPackage::parse(&path, wit_source).map_err(|e| e.to_string())?
+            let pkg = UnresolvedPackage::parse(&path, wit_source).map_err(|e| e.to_string())?;
+            resolve.push(pkg).map_err(|e| e.to_string())?
         } else {
-            let wit_path = &embed_opts.wit_path.as_ref().unwrap();
-            UnresolvedPackage::parse_file(&PathBuf::from(wit_path)).map_err(|e| e.to_string())?
+            let wit_path = &PathBuf::from(embed_opts.wit_path.as_ref().unwrap());
+            if metadata(wit_path).unwrap().is_file() {
+                let pkg = UnresolvedPackage::parse_file(wit_path).map_err(|e| e.to_string())?;
+                resolve.push(pkg).map_err(|e| e.to_string())?
+            } else {
+                resolve.push_dir(wit_path).map_err(|e| e.to_string())?.0
+            }
         };
-
-        let id = resolve.push(pkg).map_err(|e| e.to_string())?;
 
         let world_string = embed_opts.world.as_ref().map(|world| world.to_string());
         let world = resolve
