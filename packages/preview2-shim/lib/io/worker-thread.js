@@ -2,8 +2,14 @@ import { resolve } from "node:dns/promises";
 import { createReadStream, createWriteStream } from "node:fs";
 import { stdout, stderr, hrtime, _rawDebug, exit } from "node:process";
 import { runAsWorker } from "../synckit/index.js";
-import { createHttpRequest, startHttpServer, stopHttpServer, setOutgoingResponse, clearOutgoingResponse } from "./worker-http.js";
-import { Writable } from "node:stream";
+import {
+  createHttpRequest,
+  startHttpServer,
+  stopHttpServer,
+  setOutgoingResponse,
+  clearOutgoingResponse,
+} from "./worker-http.js";
+import { PassThrough } from "node:stream";
 
 import {
   CALL_MASK,
@@ -86,7 +92,7 @@ createStream(stderr);
  * @param {NodeJS.ReadableStream | NodeJS.WritableStream} stream
  */
 function streamError(streamId, stream, err) {
-  if (typeof stream.end === 'function') stream.end();
+  if (typeof stream.end === "function") stream.end();
   // we delete the stream from unfinishedStreams as it is now "finished" (closed)
   unfinishedStreams.delete(streamId);
   return { tag: "last-operation-failed", val: err };
@@ -97,6 +103,8 @@ function streamError(streamId, stream, err) {
  * @returns {{ stream: NodeJS.ReadableStream | NodeJS.WritableStream, flushPromise: Promise<void> | null }}
  */
 export function getStreamOrThrow(streamId) {
+  if (!streamId)
+    throw new Error('Internal error: no stream id provided');
   const stream = unfinishedStreams.get(streamId);
   // not in unfinished streams <=> closed
   if (!stream) throw { tag: "closed" };
@@ -135,12 +143,10 @@ function handle(call, id, payload) {
       return createFuture(createHttpRequest(method, url, headers, body));
     }
     case OUTPUT_STREAM_CREATE | HTTP: {
-      const webTransformStream = new TransformStream();
-      const stream = Writable.fromWeb(webTransformStream.writable);
+      const stream = new PassThrough();
       // content length is passed as payload
       stream.contentLength = payload;
       stream.bytesRemaining = payload;
-      stream.readableBodyStream = webTransformStream.readable;
       return createStream(stream);
     }
     case OUTPUT_STREAM_SUBSCRIBE | HTTP:
@@ -148,35 +154,25 @@ function handle(call, id, payload) {
     case OUTPUT_STREAM_BLOCKING_WRITE_AND_FLUSH | HTTP: {
       // http flush is a noop
       const { stream } = getStreamOrThrow(id);
-      // this existing indicates it's still unattached
-      // therefore there is no subscribe or backpressure
-      if (stream.readableBodyStream) {
-        switch (call) {
-          case OUTPUT_STREAM_BLOCKING_WRITE_AND_FLUSH | HTTP:
-            return handle(OUTPUT_STREAM_WRITE | HTTP, id, payload);
-          case OUTPUT_STREAM_FLUSH | HTTP:
-            return;
-          case OUTPUT_STREAM_SUBSCRIBE | HTTP:
-            return 0;
-        }
-      }
       if (call === (OUTPUT_STREAM_BLOCKING_WRITE_AND_FLUSH | HTTP))
         stream.bytesRemaining -= payload.byteLength;
       // otherwise fall through to generic implementation
       return handle(call & ~HTTP, id, payload);
     }
     case OUTPUT_STREAM_DISPOSE | HTTP:
-      throw new Error('Internal error: HTTP output stream dispose is bypassed for FINISH');
+      throw new Error(
+        "Internal error: HTTP output stream dispose is bypassed for FINISH"
+      );
     case OUTPUT_STREAM_WRITE | HTTP: {
       const { stream } = getStreamOrThrow(id);
       stream.bytesRemaining -= payload.byteLength;
       if (stream.bytesRemaining < 0) {
         throw {
-          tag: 'last-operation-failed',
+          tag: "last-operation-failed",
           val: {
-            tag: 'HTTP-request-body-size',
-            val: stream.contentLength - stream.bytesRemaining
-          }
+            tag: "HTTP-request-body-size",
+            val: stream.contentLength - stream.bytesRemaining,
+          },
         };
       }
       const output = handle(OUTPUT_STREAM_WRITE, id, payload);
@@ -186,14 +182,14 @@ function handle(call, id, payload) {
       const { stream } = getStreamOrThrow(id);
       if (stream.bytesRemaining > 0) {
         throw {
-          tag: 'HTTP-request-body-size',
-          val: stream.contentLength - stream.bytesRemaining
+          tag: "HTTP-request-body-size",
+          val: stream.contentLength - stream.bytesRemaining,
         };
       }
       if (stream.bytesRemaining < 0) {
         throw {
-          tag: 'HTTP-request-body-size',
-          val: stream.contentLength - stream.bytesRemaining
+          tag: "HTTP-request-body-size",
+          val: stream.contentLength - stream.bytesRemaining,
         };
       }
       stream.end();
@@ -218,7 +214,7 @@ function handle(call, id, payload) {
       if (!future) {
         // future not ready yet
         if (unfinishedPolls.get(id)) {
-          throw 'would-block';
+          throw "would-block";
         }
         throw new Error("future already got and dropped");
       }
@@ -290,7 +286,9 @@ function handle(call, id, payload) {
       switch (call & CALL_MASK) {
         case INPUT_STREAM_READ: {
           const { stream } = getStreamOrThrow(id);
-          const res = stream.read(Math.min(stream.readableLength, Number(payload)));
+          const res = stream.read(
+            Math.min(stream.readableLength, Number(payload))
+          );
           return res ?? new Uint8Array();
         }
         case INPUT_STREAM_BLOCKING_READ:
@@ -333,7 +331,7 @@ function handle(call, id, payload) {
             }).then(
               () => void stream.off("error", reject),
               // error is read of stream itself when later accessed
-              (_err) => void stream.off("readable", resolve),
+              (_err) => void stream.off("readable", resolve)
             )
           );
         }
@@ -442,10 +440,9 @@ function handle(call, id, payload) {
           if (flushPromise)
             return flushPromise.then(() => handle(call, id, payload));
           // not added to unfinishedPolls => it's an immediately resolved poll
-          if (!stream || stream.closed || stream.errored)
-            return 0;
+          if (!stream || stream.closed || stream.errored) return 0;
           if (!stream.writableNeedDrain)
-            return createPoll(new Promise(resolve => setTimeout(resolve)));
+            return createPoll(new Promise((resolve) => setTimeout(resolve)));
           let resolve, reject;
           return createPoll(
             new Promise((_resolve, _reject) => {
@@ -454,7 +451,7 @@ function handle(call, id, payload) {
                 .once("error", (reject = _reject));
             }).then(() => void stream.off("error", reject)),
             // error is read off stream itself when later accessed
-            (_err) => void stream.off("drain", resolve),
+            (_err) => void stream.off("drain", resolve)
           );
         }
         case OUTPUT_STREAM_BLOCKING_SPLICE: {
@@ -513,8 +510,7 @@ function handle(call, id, payload) {
         case POLL_POLL_LIST: {
           const doneList = [];
           for (const [idx, id] of payload.entries()) {
-            if (!unfinishedPolls.has(id))
-                doneList.push(idx);
+            if (!unfinishedPolls.has(id)) doneList.push(idx);
           }
           if (doneList.length > 0) return doneList;
           // if all polls are promise type, we just race them
@@ -522,8 +518,7 @@ function handle(call, id, payload) {
             payload.map((id) => unfinishedPolls.get(id))
           ).then(() => {
             for (const [idx, id] of payload.entries()) {
-              if (!unfinishedPolls.has(id))
-                doneList.push(idx);
+              if (!unfinishedPolls.has(id)) doneList.push(idx);
             }
             if (doneList.length === 0)
               throw new Error("poll promise did not unregister poll");
@@ -535,8 +530,7 @@ function handle(call, id, payload) {
           const future = unfinishedFutures.get(id);
           if (!future) {
             // future not ready yet
-            if (unfinishedPolls.get(id))
-              throw undefined;
+            if (unfinishedPolls.get(id)) throw undefined;
             throw new Error("future already got and dropped");
           }
           unfinishedFutures.delete(id);
